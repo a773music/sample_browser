@@ -23,6 +23,8 @@ Originally by: Kragen Sitaker
 import commands, time
 import curses.wrapper, time, random, cgitb, os, sys
 
+audio_extensions = ['flac','wav','mp3','aif','aiff']
+
 rc_file = os.path.expanduser('~/.sample_browser_rc')
 play_command = ''
 edit_command = ''
@@ -40,6 +42,7 @@ if '-?' in args or '-h' in args or '--help' in args:
     print """help:
     navigate with arrow keys
     to play file press space
+    arrow right/left shows/hides dir content
     to edit file , press 'e'
     to mark file , press 'm'
     to exit, press 'q' or escape 
@@ -51,7 +54,6 @@ if '-?' in args or '-h' in args or '--help' in args:
 if len(args) and os.path.isdir(args[0]):
     browse_dir = args[0]
 
-audio_extensions = ['flac','wav','mp3','aif']
 
 def make_list_unique(in_list):
     return list(set(in_list))
