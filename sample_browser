@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 """Yet another curses-based directory tree browser, in Python.
 I thought I could use something like this for filename entry, kind of
@@ -41,7 +41,10 @@ if '-?' in args or '-h' in args or '--help' in args:
     navigate with arrow keys
     to play file press space
     to edit file , press 'e'
+    to mark file , press 'm'
+    to exit, press 'q' or escape 
 
+    marked files printed to stdout on exit
     config file in .sample_browser_rc (created if not present)"""
     sys.exit()
     
@@ -49,6 +52,9 @@ if len(args) and os.path.isdir(args[0]):
     browse_dir = args[0]
 
 audio_extensions = ['flac','wav','mp3','aif']
+
+def make_list_unique(in_list):
+    return list(set(in_list))
 
 def get_ext(file_path):
     base, ext = os.path.splitext(file_path)
@@ -204,6 +210,11 @@ def factory(name):
 def debug(string):
     os.system('echo "' + string + '" > /tmp/sb')
 
+def toggle_marked(string):
+    if not string in marked:
+        marked.append(string)
+    else:
+        marked.remove(string)
     
 def main(stdscr):
     global browse_dir
@@ -215,15 +226,20 @@ def main(stdscr):
     pending_action = None
     pending_play_toggle = False
     pending_edit = False
+    pending_mark = False
     
     while 1:
         stdscr.clear()
         curses.init_pair(1, curses.COLOR_WHITE, curses.COLOR_BLUE)
+        curses.init_pair(2, curses.COLOR_WHITE, curses.COLOR_RED)
         line = 0
         offset = max(0, curidx - curses.LINES + 3)
         for data, depth in mydir.traverse():
             if line == curidx:
-                stdscr.attrset(curses.color_pair(1) | curses.A_BOLD)
+                if data.name in marked:
+                    stdscr.attrset(curses.color_pair(2) | curses.A_BOLD)
+                else:
+                    stdscr.attrset(curses.color_pair(1) | curses.A_BOLD)
                 if pending_action:
                     getattr(data, pending_action)()
                     pending_action = None
@@ -234,8 +250,19 @@ def main(stdscr):
                     stop()
                     edit(data.name)
                     pending_edit = False
+                elif pending_mark:
+                    toggle_marked(data.name)
+                    if data.name in marked:
+                        stdscr.attrset(curses.color_pair(2) | curses.A_BOLD)
+                    else:
+                        stdscr.attrset(curses.color_pair(1)| curses.A_BOLD)
+                    stdscr.refresh()
+                    pending_mark = False
             else:
-                stdscr.attrset(curses.color_pair(0))
+                if data.name in marked:
+                    stdscr.attrset(curses.color_pair(2))
+                else:
+                    stdscr.attrset(curses.color_pair(0))
             if 0 <= line - offset < curses.LINES - 1:
                 stdscr.addstr(line - offset, 0,
                               data.render(depth, curses.COLS))
@@ -258,7 +285,7 @@ def main(stdscr):
             pending_action = 'expand'
         elif ch == curses.KEY_LEFT:
             pending_action = 'collapse'
-        elif ch == ESC:
+        elif ch == ESC or ch == ord('q'):
             stop()
             return
         #elif ch == ord('\n'):
@@ -268,6 +295,8 @@ def main(stdscr):
         elif ch == ord('e'):
             pending_edit = True
             stop()
+        elif ch == ord('m'):
+            pending_mark = True
         curidx %= line
 
 def cargo_cult_routine(win):
@@ -319,4 +348,5 @@ if __name__ == '__main__':
     finally:
         restore_stdio(saved_fds)
     if len(marked):
+        marked = sorted(make_list_unique(marked))
         print '\n'.join(marked)
