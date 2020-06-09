@@ -26,18 +26,27 @@ import curses.wrapper, time, random, cgitb, os, sys
 rc_file = os.path.expanduser('~/.sample_browser_rc')
 play_command = ''
 edit_command = ''
+marked = []
+
+browse_dir = '.'
 
 cgitb.enable(format="text")
 ESC = 27
 
-global start
-
-start = os.path.expanduser('~/music/samples/')
 playing = ''
 
 args = sys.argv[1:]
+if '-?' in args or '-h' in args or '--help' in args:
+    print """help:
+    navigate with arrow keys
+    to play file press space
+    to edit file , press 'e'
+
+    config file in .sample_browser_rc (created if not present)"""
+    sys.exit()
+    
 if len(args) and os.path.isdir(args[0]):
-    start = args[0]
+    browse_dir = args[0]
 
 audio_extensions = ['flac','wav','mp3','aif']
 
@@ -78,6 +87,7 @@ def create_default_rc_file():
         if external_program_exists(candidate):
             rc.append("edit_command = '" + candidate + "'")
             break
+    rc.append("browse_dir = '.'")
     rc = '\n'.join(rc) + '\n'
     string2file(rc,rc_file)
     
@@ -186,7 +196,6 @@ class Dir(File):
                 yield kid, depth + 1
     
 def factory(name):
-    global start
     if os.path.isdir(name):
         return Dir(name)
     else:
@@ -197,10 +206,10 @@ def debug(string):
 
     
 def main(stdscr):
-    global start
+    global browse_dir
     cargo_cult_routine(stdscr)
     stdscr.nodelay(0)
-    mydir = factory(start)
+    mydir = factory(browse_dir)
     mydir.expand()
     curidx = 3
     pending_action = None
@@ -283,9 +292,12 @@ def restore_stdio((saved_stdin, saved_stdout)):
     os.dup(saved_stdin)
     os.dup(saved_stdout)
 
+
 if not os.path.isfile(rc_file):
     create_default_rc_file()
 execfile(rc_file)
+browse_dir = os.path.expanduser(browse_dir)
+
 
 
 missing_commands = []
@@ -306,4 +318,5 @@ if __name__ == '__main__':
         curses.wrapper(main)
     finally:
         restore_stdio(saved_fds)
-
+    if len(marked):
+        print '\n'.join(marked)
