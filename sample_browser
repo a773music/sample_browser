@@ -91,6 +91,8 @@ def is_playing():
     return is_playing
 
 def play(file_path):
+    if not os.path.isfile(file_path):
+        return
     global playing
     if is_playing():
         stop()
@@ -105,9 +107,10 @@ def stop():
     os.system('killall play >/dev/null 2>&1')
 
 def edit(file_path):
+    if not os.path.isfile(file_path):
+        return
     os.system(edit_command + ' "' + file_path + '" >/dev/null 2>&1')
 
-    
 def pad(data, width):
     # XXX this won't work with UTF-8
     return data + ' ' * (width - len(data))
@@ -138,11 +141,12 @@ class Dir(File):
             files = []
             for one in sorted(os.listdir(name)):
                 one = name + '/' + one
-                ext = get_ext(one)
-                if not os.path.isfile(one):
+                if os.path.isdir(one):
                     files.append(one)
-                elif ext in audio_extensions:
-                    files.append(one)
+                elif os.path.isfile(one):
+                    ext = get_ext(one)
+                    if ext in audio_extensions:
+                        files.append(one)
                 
             self.kidnames = files
         except:
