@@ -9,7 +9,7 @@ curses
 
     navigate with arrow keys
     arrow right/left shows/hides dir content
-    to play file press space
+    to play file press space or return
     to edit file , press 'e'
     to toggle mark on file , press 'm'
     to unmark all, press 'u'

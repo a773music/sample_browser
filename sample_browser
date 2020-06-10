@@ -1,5 +1,6 @@
 #!/usr/bin/env python2
 # -*- coding: utf-8 -*-
+# original ncurses browser: https://gist.github.com/rygwdn/394885
 """Yet another curses-based directory tree browser, in Python.
 I thought I could use something like this for filename entry, kind of
 like the old 4DOS 'select' command --- cd $(cursoutline.py).  So you
@@ -26,7 +27,7 @@ import curses.wrapper, time, random, cgitb, os, sys
 audio_extensions = ['flac','wav','mp3','aif','aiff']
 
 rc_file = os.path.expanduser('~/.sample_browser_rc')
-play_command = ''
+play_command = 'mplayer -really-quiet'
 edit_command = ''
 marked = []
 
@@ -41,7 +42,7 @@ args = sys.argv[1:]
 if '-?' in args or '-h' in args or '--help' in args:
     print """help:
     navigate with arrow keys
-    to play file press space
+    to play file press space or return
     arrow right/left shows/hides dir content
     to edit file , press 'e'
     to toggle mark on file , press 'm'
@@ -56,12 +57,26 @@ if len(args) and os.path.isdir(args[0]):
     browse_dir = args[0]
 
 
+def debug(string):
+    os.system('echo "' + string + '" >> /tmp/sample_browser_debug.txt')
+
+
+def jack_is_running():
+    jack='ps aux | grep jackd | grep -v grep'
+    result = os.popen(jack, 'r').readlines()
+    if len(result) == 0:
+        return False
+    else:
+        return True
+
+    
 def make_list_unique(in_list):
     return list(set(in_list))
 
 def get_ext(file_path):
     base, ext = os.path.splitext(file_path)
-    return ext.strip('.').lower()
+    ext = ext.strip('.').lower()
+    return ext
 
 
 def external_program_exists(command):
@@ -86,12 +101,7 @@ def string2file(string,filename):
         
 def create_default_rc_file():
     rc = []
-    play_command_candidates = ['play']
     edit_command_candidates = ['mhwaveedit','audacity']
-    for candidate in play_command_candidates:
-        if external_program_exists(candidate):
-            rc.append("play_command = '" + candidate + "'")
-            break
     for candidate in edit_command_candidates:
         if external_program_exists(candidate):
             rc.append("edit_command = '" + candidate + "'")
@@ -101,29 +111,35 @@ def create_default_rc_file():
     string2file(rc,rc_file)
     
 def is_playing():
+    play_process = play_command.split(' ')[0]
     is_playing = False
     status, output = commands.getstatusoutput('ps aux')
     for line in output.split('\n'):
-        if line.find('play ') != -1:
+        if line.find(play_process) != -1:
             is_playing = True
             break
     return is_playing
 
 def play(file_path):
+    global playing, play_command
     if not os.path.isfile(file_path):
         return
-    global playing
-    if is_playing():
-        stop()
     if playing == file_path and is_playing():
         stop()
         return
-    os.system(play_command + ' -q "' + file_path + '" > /dev/null 2>&1 &')
-    pending_toggle_play = False
+    elif playing != '':
+        stop()
+    local_play = play_command
+    if jack_is_running():
+        local_play = local_play + ' -af channels=2 -ao jack '
+    os.system(local_play + ' "' + file_path + '" > /dev/null 2>&1 &')
     playing = file_path
 
 def stop():
-    os.system('killall play >/dev/null 2>&1')
+    global playing
+    process_name = play_command.split(' ')[0]
+    os.system('killall ' + process_name + ' >/dev/null 2>&1')
+    playing = ''
 
 def edit(file_path):
     if not os.path.isfile(file_path):
@@ -156,20 +172,8 @@ class File:
 class Dir(File):
     def __init__(self, name):
         File.__init__(self, name)
-        try:
-            files = []
-            for one in sorted(os.listdir(name)):
-                one = name + '/' + one
-                if os.path.isdir(one):
-                    files.append(one)
-                elif os.path.isfile(one):
-                    ext = get_ext(one)
-                    if ext in audio_extensions:
-                        files.append(one)
-                
-            self.kidnames = files
-        except:
-            self.kidnames = None  # probably permission denied
+        try: self.kidnames = sorted(os.listdir(name))
+        except: self.kidnames = None  # probably permission denied
         self.kids = None
         self.expanded = False
         
@@ -177,8 +181,15 @@ class Dir(File):
         if self.kidnames is None:
             return []
         if self.kids is None:
-            self.kids = [factory(os.path.join(self.name, kid))
-                         for kid in self.kidnames]
+            self.kids = []
+            for kid in self.kidnames:
+                kid = factory(os.path.join(self.name, kid))
+                name = kid.name
+                if os.path.isfile(name):
+                    if get_ext(name) in audio_extensions:
+                        self.kids.append(kid)
+                else:
+                    self.kids.append(kid)
         return self.kids
     
     def icon(self):
@@ -210,8 +221,6 @@ def factory(name):
     else:
         return File(name)
 
-def debug(string):
-    os.system('echo "' + string + '" > /tmp/sample_browser_debug.txt')
 
 def toggle_marked(string):
     if not string in marked:
@@ -307,8 +316,7 @@ def main(stdscr):
         elif ch == ESC or ch == ord('q'):
             stop()
             return
-        #elif ch == ord('\n'):
-        elif ch == ord(' '):
+        elif ch == ord(' ') or ch == ord('\n'):
             pending_play_toggle = True
         # actions
         elif ch == ord('e'):
@@ -347,11 +355,14 @@ if not os.path.isfile(rc_file):
     create_default_rc_file()
 execfile(rc_file)
 browse_dir = os.path.expanduser(browse_dir)
+if len(args) and os.path.isdir(args[0]):
+    browse_dir = args[0]
 
 
 
 missing_commands = []
 for one in [play_command, edit_command]:
+    one = one.split(' ')[0]
     if not len(one) or not external_program_exists(one):
         missing_commands.append(one)
 if missing_commands:
