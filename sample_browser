@@ -43,7 +43,8 @@ if '-?' in args or '-h' in args or '--help' in args:
     print """help:
     navigate with arrow keys
     to play file press space or return
-    arrow right/left shows/hides dir content
+    arrow right/left expands/collapses folders
+    home collapses all folders in root (but remembers state of sub folders)
     to edit file , press 'e'
     to toggle mark on file , press 'm'
     to unmark all, press 'u'
@@ -165,6 +166,9 @@ class File:
         
     def expand(self):
         pass
+
+    def collapse_all(self):
+        pass
     
     def collapse(self):
         pass
@@ -204,6 +208,13 @@ class Dir(File):
     def expand(self):
         self.expanded = True
 
+    def collapse_all(self, stop = False):
+        self.expanded = False
+        if stop:
+            return
+        for child in self.children():
+            child.collapse_all(True)
+        
     def collapse(self):
         self.expanded = False
         
@@ -244,8 +255,8 @@ def main(stdscr):
     pending_edit = False
     pending_mark = False
     pending_unmark = False
+    pending_collapse_all = False
     extra_refresh_hack = False
-
     
     while 1:
         extra_refresh_hack = False
@@ -281,9 +292,13 @@ def main(stdscr):
                 elif pending_unmark:
                     unmark_all()
                     stdscr.attrset(curses.color_pair(1)| curses.A_BOLD)
-                    stdscr.refresh()
                     pending_unmark = False
                     extra_refresh_hack = True
+                elif pending_collapse_all:
+                    mydir.collapse_all()
+                    mydir.expand()
+                    extra_refresh_hack = True
+                    pending_collapse_all = None
             else:
                 if data.name in marked:
                     stdscr.attrset(curses.color_pair(2))
@@ -313,6 +328,8 @@ def main(stdscr):
             pending_action = 'expand'
         elif ch == curses.KEY_LEFT:
             pending_action = 'collapse'
+        elif ch == curses.KEY_HOME:
+            pending_collapse_all = True
         elif ch == ESC or ch == ord('q'):
             stop()
             return

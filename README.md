@@ -8,7 +8,8 @@ curses
 ## usage
 
     navigate with arrow keys
-    arrow right/left shows/hides dir content
+    arrow right/left expands/collapses folders
+    home collapses all folders in root (but remembers state of sub folders)
     to play file press space or return
     to edit file , press 'e'
     to toggle mark on file , press 'm'
