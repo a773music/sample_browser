@@ -38,13 +38,14 @@ ESC = 27
 
 playing = ''
 
+has_been_collapsed_all = False
+
 args = sys.argv[1:]
 if '-?' in args or '-h' in args or '--help' in args:
     print """help:
     navigate with arrow keys
     to play file press space or return
     arrow right/left expands/collapses folders
-    home collapses all folders in root (but remembers state of sub folders)
     to edit file , press 'e'
     to toggle mark on file , press 'm'
     to unmark all, press 'u'
@@ -154,6 +155,9 @@ def pad(data, width):
 class File:
     def __init__(self, name):
         self.name = name
+
+    #was_expanded = False
+    is_dir = False
         
     def render(self, depth, width):
         return pad('%s%s %s' % (' ' * 4 * depth, self.icon(),
@@ -167,20 +171,26 @@ class File:
     def expand(self):
         pass
 
-    def collapse_all(self):
+    """
+    def toggle_collapse_all(self):
         pass
+    """
     
     def collapse(self):
         pass
 
 class Dir(File):
+    global has_been_collapsed_all
     def __init__(self, name):
         File.__init__(self, name)
+        is_dir = True
         try: self.kidnames = sorted(os.listdir(name))
         except: self.kidnames = None  # probably permission denied
         self.kids = None
         self.expanded = False
-        
+
+    #was_expanded = False
+    
     def children(self):
         if self.kidnames is None:
             return []
@@ -206,17 +216,26 @@ class Dir(File):
         else: return '[ ]'
 
     def expand(self):
+        #self.was_expanded = True
         self.expanded = True
 
-    def collapse_all(self, stop = False):
-        self.expanded = False
+    """    
+    def toggle_collapse_all(self, stop = False):
+        global has_been_collapsed_all
+        if not has_been_collapsed_all:
+            self.expanded = False
+        else:
+            if self.was_expanded:
+                self.expanded = True
         if stop:
             return
         for child in self.children():
-            child.collapse_all(True)
-        
+            child.toggle_collapse_all(True)
+        #has_been_collapsed_all = not has_been_collapsed_all
+    """
     def collapse(self):
         self.expanded = False
+        #self.was_expanded = False
         
     def traverse(self):
         yield self, 0
@@ -244,6 +263,7 @@ def unmark_all():
     marked = []
         
 def main(stdscr):
+    global has_been_collapsed_all
     global browse_dir
     cargo_cult_routine(stdscr)
     stdscr.nodelay(0)
@@ -255,8 +275,11 @@ def main(stdscr):
     pending_edit = False
     pending_mark = False
     pending_unmark = False
-    pending_collapse_all = False
+    #pending_toggle_collapse_all = False
     extra_refresh_hack = False
+    
+    last_dir_idx = 0
+            
     
     while 1:
         extra_refresh_hack = False
@@ -294,11 +317,15 @@ def main(stdscr):
                     stdscr.attrset(curses.color_pair(1)| curses.A_BOLD)
                     pending_unmark = False
                     extra_refresh_hack = True
-                elif pending_collapse_all:
-                    mydir.collapse_all()
+                """
+                elif pending_toggle_collapse_all:
+                    mydir.toggle_collapse_all()
                     mydir.expand()
+                    stdscr.refresh()
                     extra_refresh_hack = True
-                    pending_collapse_all = None
+                    pending_toggle_collapse_all = None
+                    has_been_collapsed_all = not has_been_collapsed_all
+                """
             else:
                 if data.name in marked:
                     stdscr.attrset(curses.color_pair(2))
@@ -328,8 +355,9 @@ def main(stdscr):
             pending_action = 'expand'
         elif ch == curses.KEY_LEFT:
             pending_action = 'collapse'
-        elif ch == curses.KEY_HOME:
-            pending_collapse_all = True
+        #elif ch == curses.KEY_HOME:
+        #    pending_toggle_collapse_all = True
+        #    curidx = last_dir_idx
         elif ch == ESC or ch == ord('q'):
             stop()
             return
@@ -344,6 +372,9 @@ def main(stdscr):
         elif ch == ord('u'):
             pending_unmark = True
         curidx %= line
+        #if data.is_dir:
+        #    last_dir_idx = curidx
+        #    debug(last_dir_idx)
 
 def cargo_cult_routine(win):
     win.clear()
